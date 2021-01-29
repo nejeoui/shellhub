@@ -108,6 +108,8 @@ func AuthUserInfo(c apicontext.Context) error {
 		Name:   user.Name,
 		User:   user.Username,
 		Tenant: namespace.TenantID,
+		ID:     user.ID,
+		Email:  user.Email,
 	})
 }
 
