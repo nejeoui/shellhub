@@ -100,9 +100,16 @@ func AuthUserInfo(c apicontext.Context) error {
 		return echo.ErrUnauthorized
 	}
 	namespace, err := c.Store().GetNamespace(c.Ctx(), tenant)
+
 	if err != nil {
-		return echo.ErrUnauthorized
+		switch {
+		case tenant == "":
+			namespace.TenantID = ""
+		default:
+			return echo.ErrUnauthorized
+		}
 	}
+
 	return c.JSON(http.StatusOK, &models.UserAuthResponse{
 		Token:  c.Request().Header.Get(echo.HeaderAuthorization),
 		Name:   user.Name,
