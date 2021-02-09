@@ -924,7 +924,29 @@ func (s *Store) UpdateUserFromAdmin(ctx context.Context, username, email, passwo
 func (s *Store) DeleteUser(ctx context.Context, ID string) error {
 	objID, _ := primitive.ObjectIDFromHex(ID)
 	_, err := s.db.Collection("users").DeleteOne(ctx, bson.M{"_id": objID})
-	return err
+
+	findOptions := options.Find()
+	cursor, err := s.db.Collection("namespaces").Find(ctx, bson.M{"owner": ID}, findOptions)
+	if err != nil {
+		return err
+	}
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		namespace := new(models.Namespace)
+		err = cursor.Decode(&namespace)
+		if err != nil {
+			return err
+		}
+		s.DeleteNamespace(ctx, namespace.TenantID)
+
+	}
+
+	if err := cursor.Err(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Store) UpdateDataUserSecurity(ctx context.Context, sessionRecord bool, tenant string) error {
@@ -1356,8 +1378,28 @@ func (s *Store) CreateNamespace(ctx context.Context, namespace *models.Namespace
 	return namespace, err
 }
 func (s *Store) DeleteNamespace(ctx context.Context, namespace string) error {
-	_, err := s.db.Collection("namespaces").DeleteOne(ctx, bson.M{"tenant_id": namespace})
+	if _, err := s.db.Collection("namespaces").DeleteOne(ctx, bson.M{"tenant_id": namespace}); err != nil {
+		return err
+	}
+	findOptions := options.Find()
+	cursor, err := s.db.Collection("devices").Find(ctx, bson.M{"tenant_id": namespace}, findOptions)
+	if err != nil {
+		return err
+	}
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		device := new(models.Device)
+		err = cursor.Decode(&device)
+		if err != nil {
+			return err
+		}
+		s.DeleteDevice(ctx, models.UID(device.UID))
+
+	}
+
 	return err
+
 }
 func (s *Store) EditNamespace(ctx context.Context, namespace, name string) (*models.Namespace, error) {
 	if _, err := s.db.Collection("namespaces").UpdateOne(ctx, bson.M{"tenant_id": namespace}, bson.M{"$set": bson.M{"name": name}}); err != nil {
